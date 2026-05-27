@@ -1,6 +1,6 @@
 from aerial_gym.task.base_task import BaseTask
 from aerial_gym.sim.sim_builder import SimBuilder
-from pytorch3d.transforms import euler_angles_to_matrix, matrix_to_rotation_6d, quaternion_to_matrix, matrix_to_euler_angles
+from aerial_gym.utils.pytorch3d_compat import euler_angles_to_matrix, matrix_to_rotation_6d, quaternion_to_matrix, matrix_to_euler_angles
 import torch
 import numpy as np
 
@@ -8,7 +8,7 @@ from aerial_gym.utils.math import *
 
 from aerial_gym.utils.logging import CustomLogger
 
-from gym.spaces import Dict, Box
+from gymnasium.spaces import Dict, Box
 
 logger = CustomLogger("position_setpoint_task")
 

@@ -9,8 +9,8 @@ import isaacgym
 from aerial_gym.registry.task_registry import task_registry
 from aerial_gym.utils.helpers import parse_arguments
 
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 from argparse import Namespace
 
 from rl_games.common import env_configurations, vecenv

@@ -9,7 +9,7 @@ logger = CustomLogger("base_lee_controller")
 logger.setLevel("DEBUG")
 
 
-import pytorch3d.transforms as p3d_transforms
+from aerial_gym.utils.pytorch3d_compat import transforms as p3d_transforms
 
 from aerial_gym.control.controllers.base_controller import *
 

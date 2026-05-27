@@ -31,7 +31,7 @@ import os
 import random
 import time
 
-import gym
+import gymnasium as gym
 import isaacgym  # noqa
 from isaacgym import gymutil
 import numpy as np

@@ -28,7 +28,79 @@
 
 import torch
 from torch import Tensor
-from pytorch3d.transforms import matrix_to_quaternion
+
+
+def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
+    """Convert rotation matrix to quaternion (wxyz convention).
+
+    Args:
+        matrix: Rotation matrix of shape (..., 3, 3).
+
+    Returns:
+        Quaternion of shape (..., 4) in (w, x, y, z) convention.
+    """
+    batch_shape = matrix.shape[:-2]
+    m = matrix.reshape(-1, 3, 3)
+
+    trace = m[:, 0, 0] + m[:, 1, 1] + m[:, 2, 2]
+
+    quat = torch.zeros(m.shape[0], 4, device=matrix.device, dtype=matrix.dtype)
+
+    # Case 1: trace > 0
+    s = torch.sqrt(trace + 1.0) * 2  # s = 4 * w
+    w = 0.25 * s
+    x = (m[:, 2, 1] - m[:, 1, 2]) / s
+    y = (m[:, 0, 2] - m[:, 2, 0]) / s
+    z = (m[:, 1, 0] - m[:, 0, 1]) / s
+
+    # Case 2: m[0,0] > m[1,1] and m[0,0] > m[2,2]
+    s2 = torch.sqrt(1.0 + m[:, 0, 0] - m[:, 1, 1] - m[:, 2, 2]) * 2
+    w2 = (m[:, 2, 1] - m[:, 1, 2]) / s2
+    x2 = 0.25 * s2
+    y2 = (m[:, 0, 1] + m[:, 1, 0]) / s2
+    z2 = (m[:, 0, 2] + m[:, 2, 0]) / s2
+
+    # Case 3: m[1,1] > m[2,2]
+    s3 = torch.sqrt(1.0 + m[:, 1, 1] - m[:, 0, 0] - m[:, 2, 2]) * 2
+    w3 = (m[:, 0, 2] - m[:, 2, 0]) / s3
+    x3 = (m[:, 0, 1] + m[:, 1, 0]) / s3
+    y3 = 0.25 * s3
+    z3 = (m[:, 1, 2] + m[:, 2, 1]) / s3
+
+    # Case 4: m[2,2] > m[0,0]
+    s4 = torch.sqrt(1.0 + m[:, 2, 2] - m[:, 0, 0] - m[:, 1, 1]) * 2
+    w4 = (m[:, 1, 0] - m[:, 0, 1]) / s4
+    x4 = (m[:, 0, 2] + m[:, 2, 0]) / s4
+    y4 = (m[:, 1, 2] + m[:, 2, 1]) / s4
+    z4 = 0.25 * s4
+
+    # Select based on conditions
+    mask1 = trace > 0
+    mask2 = (~mask1) & (m[:, 0, 0] > m[:, 1, 1]) & (m[:, 0, 0] > m[:, 2, 2])
+    mask3 = (~mask1) & (~mask2) & (m[:, 1, 1] > m[:, 2, 2])
+    mask4 = (~mask1) & (~mask2) & (~mask3)
+
+    quat[mask1, 0] = w[mask1]
+    quat[mask1, 1] = x[mask1]
+    quat[mask1, 2] = y[mask1]
+    quat[mask1, 3] = z[mask1]
+
+    quat[mask2, 0] = w2[mask2]
+    quat[mask2, 1] = x2[mask2]
+    quat[mask2, 2] = y2[mask2]
+    quat[mask2, 3] = z2[mask2]
+
+    quat[mask3, 0] = w3[mask3]
+    quat[mask3, 1] = x3[mask3]
+    quat[mask3, 2] = y3[mask3]
+    quat[mask3, 3] = z3[mask3]
+
+    quat[mask4, 0] = w4[mask4]
+    quat[mask4, 1] = x4[mask4]
+    quat[mask4, 2] = y4[mask4]
+    quat[mask4, 3] = z4[mask4]
+
+    return quat.reshape(*batch_shape, 4)
 
 
 @torch.jit.script

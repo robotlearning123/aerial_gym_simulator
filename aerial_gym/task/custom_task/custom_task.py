@@ -8,7 +8,7 @@ from aerial_gym.utils.math import *
 from aerial_gym.utils.logging import CustomLogger
 
 import gymnasium as gym
-from gym.spaces import Dict, Box
+from gymnasium.spaces import Dict, Box
 
 logger = CustomLogger("custom_task")
 

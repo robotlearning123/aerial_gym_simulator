@@ -1,5 +1,5 @@
 import torch
-import pytorch3d.transforms as p3d_transforms
+from aerial_gym.utils.pytorch3d_compat import transforms as p3d_transforms
 from aerial_gym.utils.math import *
 
 

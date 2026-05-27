@@ -9,7 +9,7 @@ from aerial_gym.registry.task_registry import task_registry
 from aerial_gym.rl_training.sample_factory.end_to_end_training.enjoy_ros import NN_Inference_ROS
 from aerial_gym.rl_training.sample_factory.end_to_end_training.deployment.convert_model import convert_model_to_script_model
 
-from pytorch3d.transforms import rotation_6d_to_matrix, matrix_to_euler_angles
+from aerial_gym.utils.pytorch3d_compat import rotation_6d_to_matrix, matrix_to_euler_angles
 
 from aerial_gym.registry.robot_registry import robot_registry
 from aerial_gym.registry.env_registry import env_config_registry

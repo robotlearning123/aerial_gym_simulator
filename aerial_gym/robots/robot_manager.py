@@ -1,19 +1,28 @@
-from isaacgym import gymapi
-from isaacgym import gymtorch
 import os
 
 from aerial_gym.env_manager.base_env_manager import BaseManager
 from aerial_gym.registry.robot_registry import robot_registry
 import torch
 
+# isaacgym imports are optional — only needed for legacy backend
+try:
+    from isaacgym import gymapi
+    from isaacgym import gymtorch
+    _HAS_ISAACGYM = True
+except ImportError:
+    _HAS_ISAACGYM = False
+
 # get all the sensor classes
-from aerial_gym.sensors.isaacgym_camera_sensor import IsaacGymCameraSensor
+try:
+    from aerial_gym.sensors.isaacgym_camera_sensor import IsaacGymCameraSensor
+except ImportError:
+    IsaacGymCameraSensor = None
 from aerial_gym.sensors.warp.warp_sensor import WarpSensor
 from aerial_gym.sensors.imu_sensor import IMUSensor
 
 
 from aerial_gym.utils.logging import CustomLogger
-import pytorch3d.transforms as p3d_transforms
+from aerial_gym.utils.pytorch3d_compat import transforms as p3d_transforms
 
 logger = CustomLogger("robot_manager")
 

@@ -10,7 +10,7 @@ from aerial_gym.utils.logging import CustomLogger
 from aerial_gym.utils.vae.vae_image_encoder import VAEImageEncoder
 
 import gymnasium as gym
-from gym.spaces import Dict, Box
+from gymnasium.spaces import Dict, Box
 
 logger = CustomLogger("navigation_task")
 
