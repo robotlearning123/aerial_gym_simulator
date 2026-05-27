@@ -1,6 +1,9 @@
-warp-lang==1.0.0
-urdfpy=0.0.22
-networkx==3.1
+warp-lang
+networkx
 scipy
-numpy==1.23
+numpy
 matplotlib
+gymnasium
+rl-games
+torch
+trimesh

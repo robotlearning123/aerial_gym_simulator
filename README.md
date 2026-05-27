@@ -35,8 +35,8 @@ Equipped with GPU-accelerated and customizable ray-casting based LiDAR and Camer
 - **RL-based control and navigation policies** of your choice can be added for robot learning tasks. [Includes scripts to get started with training your own robots.](https://ntnu-arl.github.io/aerial_gym_simulator/6_rl_training).
 
 
-> [!IMPORTANT] 
-> Support for [**Isaac Lab**](https://isaac-sim.github.io/IsaacLab/) and [**Isaac Sim**](https://developer.nvidia.com/isaac/sim) is currently under development. We anticipate releasing this feature in the near future.
+> [!IMPORTANT]
+> **Version 3.0**: This version has been ported to support [**Isaac Sim 6.0**](https://developer.nvidia.com/isaac/sim) and [**Isaac Lab 3.0**](https://isaac-sim.github.io/IsaacLab/). The `isaacsim6` branch contains the updated code. The original Isaac Gym Preview 4 version remains on the `main` branch.
 
 
 Please refer to the paper detailing the previous version of our simulator to get insights into the motivation and the design principles involved in creating the Aerial Gym Simulator: [https://arxiv.org/abs/2305.16510](https://arxiv.org/abs/2305.16510) (link will be updated to reflect the newer version soon!).

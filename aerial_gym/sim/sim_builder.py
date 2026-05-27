@@ -1,6 +1,6 @@
-from aerial_gym.env_manager.env_manager import EnvManager
-
 import torch
+
+import os
 
 
 class SimBuilder:
@@ -34,15 +34,36 @@ class SimBuilder:
         self.sim_name = sim_name
         self.env_name = env_name
         self.robot_name = robot_name
-        self.env = EnvManager(
-            sim_name=sim_name,
-            env_name=env_name,
-            robot_name=robot_name,
-            controller_name=controller_name,
-            args=args,
-            device=device,
-            num_envs=num_envs,
-            use_warp=use_warp,
-            headless=headless,
-        )
+
+        # Use Isaac Lab backend if AERIAL_GYM_USE_ISAACLAB is set
+        use_isaaclab = os.environ.get("AERIAL_GYM_USE_ISAACLAB", "1") == "1"
+
+        if use_isaaclab:
+            from aerial_gym.env_manager.isaaclab_env_orchestrator import IsaacLabEnvOrchestrator
+
+            self.env = IsaacLabEnvOrchestrator(
+                sim_name=sim_name,
+                env_name=env_name,
+                robot_name=robot_name,
+                controller_name=controller_name,
+                args=args,
+                device=device,
+                num_envs=num_envs,
+                use_warp=use_warp,
+                headless=headless,
+            )
+        else:
+            from aerial_gym.env_manager.env_manager import EnvManager
+
+            self.env = EnvManager(
+                sim_name=sim_name,
+                env_name=env_name,
+                robot_name=robot_name,
+                controller_name=controller_name,
+                args=args,
+                device=device,
+                num_envs=num_envs,
+                use_warp=use_warp,
+                headless=headless,
+            )
         return self.env

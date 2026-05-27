@@ -28,11 +28,8 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
-from isaacgym import gymapi
-from isaacgym import gymutil
 import argparse
-
-import distutils
+import distutils.util
 
 
 def class_to_dict(obj) -> dict:
@@ -54,26 +51,25 @@ def class_to_dict(obj) -> dict:
 
 
 def parse_sim_params(args, cfg):
-    # code from Isaac Gym Preview 2
-    # initialize sim params
-    sim_params = gymapi.SimParams()
+    """Parse simulation parameters from config dict.
 
-    # set some values from args
-    if args.physics_engine == gymapi.SIM_FLEX:
-        if args.device != "cpu":
-            print("WARNING: Using Flex with GPU instead of PHYSX!")
-    elif args.physics_engine == gymapi.SIM_PHYSX:
-        sim_params.physx.use_gpu = args.use_gpu
-        sim_params.physx.num_subscenes = args.subscenes
-    sim_params.use_gpu_pipeline = args.use_gpu_pipeline
+    Returns a dict of simulation parameters compatible with Isaac Lab's SimulationCfg.
+    """
+    sim_params = {}
 
-    # if sim options are provided in cfg, parse them and update/override above:
+    # Extract sim parameters from config
     if "sim" in cfg:
-        gymutil.parse_sim_config(cfg["sim"], sim_params)
+        sim_cfg = cfg["sim"]
+        if isinstance(sim_cfg, dict):
+            sim_params.update(sim_cfg)
+        else:
+            sim_params.update(class_to_dict(sim_cfg))
 
-    # Override num_threads if passe1d on the command line
-    if args.physics_engine == gymapi.SIM_PHYSX and args.num_threads > 0:
-        sim_params.physx.num_threads = args.num_threads
+    # Override with args
+    if hasattr(args, "headless") and args.headless is not None:
+        if "viewer" not in sim_params:
+            sim_params["viewer"] = {}
+        sim_params["viewer"]["headless"] = args.headless
 
     return sim_params
 
@@ -81,14 +77,31 @@ def parse_sim_params(args, cfg):
 def update_cfg_from_args(cfg, args):
     if cfg is None:
         raise ValueError("cfg is None")
-    if args.headless is not None:
-        cfg["viewer"]["headless"] = args.headless
-    if args.num_envs is not None:
-        cfg["env"]["num_envs"] = args.num_envs
+    if hasattr(args, "headless") and args.headless is not None:
+        if "viewer" in cfg:
+            cfg["viewer"]["headless"] = args.headless
+    if hasattr(args, "num_envs") and args.num_envs is not None:
+        if "env" in cfg:
+            cfg["env"]["num_envs"] = args.num_envs
     return cfg
 
 
-def parse_arguments(description="Isaac Gym Example", headless=False, no_graphics=False, custom_parameters=[]):
+def parse_device_str(sim_device):
+    """Parse device string into device type and device ID."""
+    if sim_device.startswith("cuda"):
+        parts = sim_device.split(":")
+        device_type = "cuda"
+        device_id = int(parts[1]) if len(parts) > 1 else 0
+    elif sim_device == "cpu":
+        device_type = "cpu"
+        device_id = -1
+    else:
+        device_type = "cuda"
+        device_id = 0
+    return device_type, device_id
+
+
+def parse_arguments(description="Aerial Gym Example", headless=False, no_graphics=False, custom_parameters=[]):
     parser = argparse.ArgumentParser(description=description)
     if headless:
         parser.add_argument('--headless', action='store_true', help='Run headless without creating a viewer window')
@@ -96,16 +109,6 @@ def parse_arguments(description="Isaac Gym Example", headless=False, no_graphics
         parser.add_argument('--nographics', action='store_true',
                             help='Disable graphics context creation, no viewer window is created, and no headless rendering is available')
     parser.add_argument('--sim_device', type=str, default="cuda:0", help='Physics Device in PyTorch-like syntax')
-    parser.add_argument('--pipeline', type=str, default="gpu", help='Tensor API pipeline (cpu/gpu)')
-    parser.add_argument('--graphics_device_id', type=int, default=0, help='Graphics Device ID')
-
-    physics_group = parser.add_mutually_exclusive_group()
-    physics_group.add_argument('--flex', action='store_true', help='Use FleX for physics')
-    physics_group.add_argument('--physx', action='store_true', help='Use PhysX for physics')
-
-    parser.add_argument('--num_threads', type=int, default=0, help='Number of cores used by PhysX')
-    parser.add_argument('--subscenes', type=int, default=0, help='Number of PhysX subscenes to simulate in parallel')
-    parser.add_argument('--slices', type=int, help='Number of client threads that process env slices')
 
     for argument in custom_parameters:
         if ("name" in argument) and ("type" in argument or "action" in argument):
@@ -128,39 +131,18 @@ def parse_arguments(description="Isaac Gym Example", headless=False, no_graphics
             print()
 
     args, unknown_args = parser.parse_known_args()
-    print("[isaacgym:gymutil.py] Unknown args: ", unknown_args)
+    print("[aerial_gym] Unknown args: ", unknown_args)
 
-    args.sim_device_type, args.compute_device_id = gymutil.parse_device_str(args.sim_device)
-    pipeline = args.pipeline.lower()
+    args.sim_device_type, args.compute_device_id = parse_device_str(args.sim_device)
+    args.use_gpu_pipeline = (args.sim_device_type == "cuda")
+    args.use_gpu = (args.sim_device_type == "cuda")
+    args.physics_engine = "physx"
 
-    assert (pipeline == 'cpu' or pipeline in ('gpu', 'cuda')), f"Invalid pipeline '{args.pipeline}'. Should be either cpu or gpu."
-    args.use_gpu_pipeline = (pipeline in ('gpu', 'cuda'))
-
-    if args.sim_device_type != 'cuda' and args.flex:
-        print("Can't use Flex with CPU. Changing sim device to 'cuda:0'")
-        args.sim_device = 'cuda:0'
-        args.sim_device_type, args.compute_device_id = parse_device_str(args.sim_device)
-
-    if (args.sim_device_type != 'cuda' and pipeline == 'gpu'):
-        print("Can't use GPU pipeline with CPU Physics. Changing pipeline to 'CPU'.")
-        args.pipeline = 'CPU'
-        args.use_gpu_pipeline = False
-
-    # Default to PhysX
-    args.physics_engine = gymapi.SIM_PHYSX
-    args.use_gpu = (args.sim_device_type == 'cuda')
-
-    if args.flex:
-        args.physics_engine = gymapi.SIM_FLEX
-
-    # Using --nographics implies --headless
-    if no_graphics and args.nographics:
+    if no_graphics and hasattr(args, "nographics") and args.nographics:
         args.headless = True
 
-    if args.slices is None:
-        args.slices = args.subscenes
-
     return args
+
 
 def get_args(additional_parameters=[]):
     custom_parameters = [
@@ -198,15 +180,19 @@ def get_args(additional_parameters=[]):
 
 
 def asset_class_to_AssetOptions(asset_class):
-    asset_options = gymapi.AssetOptions()
-    asset_options.collapse_fixed_joints = asset_class.collapse_fixed_joints
-    asset_options.replace_cylinder_with_capsule = asset_class.replace_cylinder_with_capsule
-    asset_options.flip_visual_attachments = asset_class.flip_visual_attachments
-    asset_options.fix_base_link = asset_class.fix_base_link
-    asset_options.density = asset_class.density
-    asset_options.angular_damping = asset_class.angular_damping
-    asset_options.linear_damping = asset_class.linear_damping
-    asset_options.max_angular_velocity = asset_class.max_angular_velocity
-    asset_options.max_linear_velocity = asset_class.max_linear_velocity
-    asset_options.disable_gravity = asset_class.disable_gravity
-    return asset_options
+    """Convert asset config class to a dict of options compatible with Isaac Lab.
+
+    Returns a dict that can be used with Isaac Lab's UsdFileCfg or UrdfFileCfg.
+    """
+    return {
+        "collapse_fixed_joints": asset_class.collapse_fixed_joints,
+        "replace_cylinder_with_capsule": asset_class.replace_cylinder_with_capsule,
+        "flip_visual_attachments": asset_class.flip_visual_attachments,
+        "fix_base_link": asset_class.fix_base_link,
+        "density": asset_class.density,
+        "angular_damping": asset_class.angular_damping,
+        "linear_damping": asset_class.linear_damping,
+        "max_angular_velocity": asset_class.max_angular_velocity,
+        "max_linear_velocity": asset_class.max_linear_velocity,
+        "disable_gravity": asset_class.disable_gravity,
+    }
