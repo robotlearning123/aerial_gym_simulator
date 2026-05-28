@@ -9,47 +9,55 @@ import math
 
 
 def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
-    """Convert rotation matrix to quaternion (wxyz convention)."""
+    """Convert rotation matrix to quaternion (wxyz convention).
+
+    Uses Shepperd's method with safe division to avoid NaN from
+    near-zero denominators in degenerate cases.
+    """
     batch_shape = matrix.shape[:-2]
     m = matrix.reshape(-1, 3, 3)
 
     trace = m[:, 0, 0] + m[:, 1, 1] + m[:, 2, 2]
 
-    quat = torch.zeros(m.shape[0], 4, device=matrix.device, dtype=matrix.dtype)
-
-    s = torch.sqrt(trace + 1.0) * 2
-    w = 0.25 * s
-    x = (m[:, 2, 1] - m[:, 1, 2]) / s
-    y = (m[:, 0, 2] - m[:, 2, 0]) / s
-    z = (m[:, 1, 0] - m[:, 0, 1]) / s
-
-    s2 = torch.sqrt(1.0 + m[:, 0, 0] - m[:, 1, 1] - m[:, 2, 2]) * 2
-    w2 = (m[:, 2, 1] - m[:, 1, 2]) / s2
-    x2 = 0.25 * s2
-    y2 = (m[:, 0, 1] + m[:, 1, 0]) / s2
-    z2 = (m[:, 0, 2] + m[:, 2, 0]) / s2
-
-    s3 = torch.sqrt(1.0 + m[:, 1, 1] - m[:, 0, 0] - m[:, 2, 2]) * 2
-    w3 = (m[:, 0, 2] - m[:, 2, 0]) / s3
-    x3 = (m[:, 0, 1] + m[:, 1, 0]) / s3
-    y3 = 0.25 * s3
-    z3 = (m[:, 1, 2] + m[:, 2, 1]) / s3
-
-    s4 = torch.sqrt(1.0 + m[:, 2, 2] - m[:, 0, 0] - m[:, 1, 1]) * 2
-    w4 = (m[:, 1, 0] - m[:, 0, 1]) / s4
-    x4 = (m[:, 0, 2] + m[:, 2, 0]) / s4
-    y4 = (m[:, 1, 2] + m[:, 2, 1]) / s4
-    z4 = 0.25 * s4
-
+    # Determine which branch to use for each matrix
     mask1 = trace > 0
     mask2 = (~mask1) & (m[:, 0, 0] > m[:, 1, 1]) & (m[:, 0, 0] > m[:, 2, 2])
     mask3 = (~mask1) & (~mask2) & (m[:, 1, 1] > m[:, 2, 2])
     mask4 = (~mask1) & (~mask2) & (~mask3)
 
-    quat[mask1] = torch.stack([w, x, y, z], dim=-1)[mask1]
-    quat[mask2] = torch.stack([w2, x2, y2, z2], dim=-1)[mask2]
-    quat[mask3] = torch.stack([w3, x3, y3, z3], dim=-1)[mask3]
-    quat[mask4] = torch.stack([w4, x4, y4, z4], dim=-1)[mask4]
+    quat = torch.zeros(m.shape[0], 4, device=matrix.device, dtype=matrix.dtype)
+
+    # Branch 1: trace > 0
+    if mask1.any():
+        s = torch.sqrt(trace[mask1] + 1.0) * 2
+        quat[mask1, 0] = 0.25 * s
+        quat[mask1, 1] = (m[mask1, 2, 1] - m[mask1, 1, 2]) / s
+        quat[mask1, 2] = (m[mask1, 0, 2] - m[mask1, 2, 0]) / s
+        quat[mask1, 3] = (m[mask1, 1, 0] - m[mask1, 0, 1]) / s
+
+    # Branch 2: m00 is largest diagonal
+    if mask2.any():
+        s = torch.sqrt(1.0 + m[mask2, 0, 0] - m[mask2, 1, 1] - m[mask2, 2, 2]) * 2
+        quat[mask2, 0] = (m[mask2, 2, 1] - m[mask2, 1, 2]) / s
+        quat[mask2, 1] = 0.25 * s
+        quat[mask2, 2] = (m[mask2, 0, 1] + m[mask2, 1, 0]) / s
+        quat[mask2, 3] = (m[mask2, 0, 2] + m[mask2, 2, 0]) / s
+
+    # Branch 3: m11 is largest diagonal
+    if mask3.any():
+        s = torch.sqrt(1.0 + m[mask3, 1, 1] - m[mask3, 0, 0] - m[mask3, 2, 2]) * 2
+        quat[mask3, 0] = (m[mask3, 0, 2] - m[mask3, 2, 0]) / s
+        quat[mask3, 1] = (m[mask3, 0, 1] + m[mask3, 1, 0]) / s
+        quat[mask3, 2] = 0.25 * s
+        quat[mask3, 3] = (m[mask3, 1, 2] + m[mask3, 2, 1]) / s
+
+    # Branch 4: m22 is largest diagonal
+    if mask4.any():
+        s = torch.sqrt(1.0 + m[mask4, 2, 2] - m[mask4, 0, 0] - m[mask4, 1, 1]) * 2
+        quat[mask4, 0] = (m[mask4, 1, 0] - m[mask4, 0, 1]) / s
+        quat[mask4, 1] = (m[mask4, 0, 2] + m[mask4, 2, 0]) / s
+        quat[mask4, 2] = (m[mask4, 1, 2] + m[mask4, 2, 1]) / s
+        quat[mask4, 3] = 0.25 * s
 
     return quat.reshape(*batch_shape, 4)
 

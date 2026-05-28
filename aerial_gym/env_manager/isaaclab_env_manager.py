@@ -7,11 +7,7 @@ robot, controller, and sensor code.
 
 from __future__ import annotations
 
-import math
-import random
-
 import torch
-import numpy as np
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
@@ -360,6 +356,8 @@ class IsaacLabEnvManager:
         if self.cfg.env.write_to_sim_at_every_timestep:
             self.write_to_sim()
 
+        needs_write = False
+
         # Apply forces and torques to robot rigid bodies only when non-zero.
         # PhysX rejects all-zero or invalid force data with warnings, so skip
         # the API call entirely when there's nothing to apply.
@@ -370,10 +368,7 @@ class IsaacLabEnvManager:
                 self.robot_articulation.set_external_force_and_torque(
                     forces, torques, body_ids=torch.arange(self.num_rigid_bodies_robot, device=self.device)
                 )
-                try:
-                    self.robot_articulation.write_data_to_sim()
-                except Exception:
-                    pass  # PhysX may reject invalid force data; skip gracefully
+                needs_write = True
 
         # Apply DOF targets
         if self.sim_has_dof:
@@ -381,16 +376,22 @@ class IsaacLabEnvManager:
             if self.dof_control_mode == "position":
                 target = self.global_tensor_dict["dof_position_setpoint_tensor"]
                 self.robot_articulation.set_joint_position_target(target)
+                needs_write = True
             elif self.dof_control_mode == "velocity":
                 target = self.global_tensor_dict["dof_velocity_setpoint_tensor"]
                 self.robot_articulation.set_joint_velocity_target(target)
+                needs_write = True
             elif self.dof_control_mode == "effort":
                 target = self.global_tensor_dict["dof_effort_tensor"]
                 self.robot_articulation.set_joint_effort_target(target)
+                needs_write = True
+
+        # Single write_data_to_sim call after all setters
+        if needs_write:
             try:
                 self.robot_articulation.write_data_to_sim()
             except Exception:
-                pass  # PhysX may reject invalid data; skip gracefully
+                pass
 
     def physics_step(self):
         """Step the simulation using Isaac Lab."""

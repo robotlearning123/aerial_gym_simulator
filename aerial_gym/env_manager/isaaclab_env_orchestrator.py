@@ -7,9 +7,6 @@ while preserving the global_tensor_dict pattern.
 
 from __future__ import annotations
 
-import math
-import random
-
 import torch
 
 from aerial_gym.env_manager.isaaclab_env_manager import IsaacLabEnvManager
@@ -194,11 +191,12 @@ class IsaacLabEnvOrchestrator:
         """Step the simulation."""
         self.reset_tensors()
         num_physics_step_per_env_step = max(
-            math.floor(
-                random.gauss(
-                    self.cfg.env.num_physics_steps_per_env_step_mean,
-                    self.cfg.env.num_physics_steps_per_env_step_std,
-                )
+            int(
+                torch.normal(
+                    mean=float(self.cfg.env.num_physics_steps_per_env_step_mean),
+                    std=float(self.cfg.env.num_physics_steps_per_env_step_std),
+                    size=(1,),
+                ).item()
             ),
             0,
         )
