@@ -4,9 +4,13 @@ This module replaces the Isaac Gym based IGE_env_manager.py with Isaac Lab 3 API
 It preserves the global_tensor_dict pattern for backward compatibility with existing
 robot, controller, and sensor code.
 
-Quaternion convention: aerial_gym math functions (quat_rotate, quat_mul, etc.) use
-(x,y,z,w) format, same as Isaac Lab. No conversion needed. The pytorch3d_compat
-module uses (w,x,y,z); convert with quat[:, [3, 0, 1, 2]] before calling it.
+Quaternion convention:
+- Isaac Lab: root_quat_w, body_quat_w expose (w,x,y,z) — confirmed by
+  articulation_data.py docstrings and convert_quat(to="wxyz") calls.
+- aerial_gym math.py: quat_rotate, quat_mul, get_euler_xyz use (x,y,z,w).
+- Conversion on read: wxyz → xyzw via q[..., [1, 2, 3, 0]]
+- Conversion on write: xyzw → wxyz via q[:, [3, 0, 1, 2]]
+- pytorch3d_compat: also (w,x,y,z), so no extra conversion needed there.
 """
 
 from __future__ import annotations
@@ -169,8 +173,8 @@ class IsaacLabEnvManager:
     def prepare_for_simulation(self, env_manager, global_tensor_dict, robot_config=None):
         """Prepare tensors for simulation using Isaac Lab API.
 
-        Quaternion convention: Isaac Lab root_quat_w returns (x,y,z,w) which is
-        the same convention used by aerial_gym's math functions. No conversion needed.
+        Quaternion convention: Isaac Lab returns (w,x,y,z) which must be converted
+        to (x,y,z,w) for aerial_gym math functions. Done via [..., [1,2,3,0]].
         """
         self.global_tensor_dict = global_tensor_dict
         self.env_manager = env_manager
@@ -183,9 +187,9 @@ class IsaacLabEnvManager:
         if self.robot_articulation is not None:
             self.num_rigid_bodies_robot = len(self.robot_articulation.data.body_names)
 
-            # Root state tensors — Isaac Lab uses (x,y,z,w), same as aerial_gym
+            # Root state tensors — Isaac Lab returns (w,x,y,z), convert to (x,y,z,w)
             root_pos = self.robot_articulation.data.root_pos_w.torch
-            root_quat = self.robot_articulation.data.root_quat_w.torch  # (x,y,z,w)
+            root_quat = self.robot_articulation.data.root_quat_w.torch[..., [1, 2, 3, 0]]
             root_linvel = self.robot_articulation.data.root_lin_vel_w.torch
             root_angvel = self.robot_articulation.data.root_ang_vel_w.torch
 
@@ -200,7 +204,7 @@ class IsaacLabEnvManager:
                 obstacle_states = []
                 for obj in self.obstacle_objects:
                     o_pos = obj.data.root_pos_w.torch
-                    o_quat = obj.data.root_quat_w.torch  # (x,y,z,w)
+                    o_quat = obj.data.root_quat_w.torch[..., [1, 2, 3, 0]]  # (w,x,y,z) → (x,y,z,w)
                     o_linvel = obj.data.root_lin_vel_w.torch
                     o_angvel = obj.data.root_ang_vel_w.torch
                     obstacle_states.append(torch.cat([o_pos, o_quat, o_linvel, o_angvel], dim=-1))
@@ -223,7 +227,7 @@ class IsaacLabEnvManager:
 
             # Rigid body state tensor from robot articulation
             body_pos_w = self.robot_articulation.data.body_pos_w.torch
-            body_quat_w = self.robot_articulation.data.body_quat_w.torch  # (x,y,z,w)
+            body_quat_w = self.robot_articulation.data.body_quat_w.torch[..., [1, 2, 3, 0]]  # → (x,y,z,w)
             body_linvel_w = self.robot_articulation.data.body_lin_vel_w.torch
             body_angvel_w = self.robot_articulation.data.body_ang_vel_w.torch
             rigid_body_state = torch.cat(
@@ -356,18 +360,19 @@ class IsaacLabEnvManager:
     def write_to_sim(self):
         """Write state tensors from global_tensor_dict to simulation.
 
-        write_root_pose_to_sim expects (N,7) with (w,x,y,z) quaternion —
-        matching our internal storage convention. write_root_velocity_to_sim
-        expects (N,6) with [linvel_xyz, angvel_xyz].
+        global_tensor_dict stores quaternions in (x,y,z,w) format.
+        Isaac Lab write_root_pose_to_sim expects (N,7) with (w,x,y,z) quaternion.
         """
         if self.robot_articulation is not None and "robot_state_tensor" in self.global_tensor_dict:
             robot_state = self.global_tensor_dict["robot_state_tensor"]
             root_pos = robot_state[:, :3]
-            root_quat = robot_state[:, 3:7]  # (w,x,y,z)
+            root_quat_xyzw = robot_state[:, 3:7]  # (x,y,z,w)
             root_linvel = robot_state[:, 7:10]
             root_angvel = robot_state[:, 10:13]
 
-            root_pose = torch.cat([root_pos, root_quat], dim=-1)  # (N, 7)
+            # Convert (x,y,z,w) → (w,x,y,z) for Isaac Lab
+            root_quat_wxyz = root_quat_xyzw[:, [3, 0, 1, 2]]
+            root_pose = torch.cat([root_pos, root_quat_wxyz], dim=-1)  # (N, 7)
             root_velocity = torch.cat([root_linvel, root_angvel], dim=-1)  # (N, 6)
 
             self.robot_articulation.write_root_pose_to_sim(root_pose)
@@ -432,7 +437,7 @@ class IsaacLabEnvManager:
         """Update state tensors after physics step using Isaac Lab."""
         if self.robot_articulation is not None:
             root_pos = self.robot_articulation.data.root_pos_w.torch
-            root_quat = self.robot_articulation.data.root_quat_w.torch  # (x,y,z,w)
+            root_quat = self.robot_articulation.data.root_quat_w.torch[..., [1, 2, 3, 0]]  # (w,x,y,z) → (x,y,z,w)
             root_linvel = self.robot_articulation.data.root_lin_vel_w.torch
             root_angvel = self.robot_articulation.data.root_ang_vel_w.torch
 
@@ -453,7 +458,7 @@ class IsaacLabEnvManager:
 
             # Update rigid body states
             body_pos_w = self.robot_articulation.data.body_pos_w.torch
-            body_quat_w = self.robot_articulation.data.body_quat_w.torch  # (x,y,z,w)
+            body_quat_w = self.robot_articulation.data.body_quat_w.torch[..., [1, 2, 3, 0]]  # → (x,y,z,w)
             body_linvel_w = self.robot_articulation.data.body_lin_vel_w.torch
             body_angvel_w = self.robot_articulation.data.body_ang_vel_w.torch
             rigid_body_state = torch.cat(
@@ -471,7 +476,7 @@ class IsaacLabEnvManager:
             # Update obstacle states
             for i, obj in enumerate(self.obstacle_objects):
                 o_pos = obj.data.root_pos_w.torch
-                o_quat = obj.data.root_quat_w.torch  # (x,y,z,w)
+                o_quat = obj.data.root_quat_w.torch[..., [1, 2, 3, 0]]  # → (x,y,z,w)
                 o_linvel = obj.data.root_lin_vel_w.torch
                 o_angvel = obj.data.root_ang_vel_w.torch
                 self.global_tensor_dict["env_asset_state_tensor"][:, i, :] = torch.cat(
