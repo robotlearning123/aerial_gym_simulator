@@ -356,18 +356,22 @@ class IsaacLabEnvManager:
     def write_to_sim(self):
         """Write state tensors from global_tensor_dict to simulation.
 
-        Quaternions in global_tensor_dict are (x,y,z,w), same as Isaac Lab.
-        No conversion needed for write_root_pose_to_sim.
+        write_root_pose_to_sim expects (N,7) with (w,x,y,z) quaternion —
+        matching our internal storage convention. write_root_velocity_to_sim
+        expects (N,6) with [linvel_xyz, angvel_xyz].
         """
         if self.robot_articulation is not None and "robot_state_tensor" in self.global_tensor_dict:
             robot_state = self.global_tensor_dict["robot_state_tensor"]
             root_pos = robot_state[:, :3]
-            root_quat = robot_state[:, 3:7]  # (x,y,z,w) — same as Isaac Lab
+            root_quat = robot_state[:, 3:7]  # (w,x,y,z)
             root_linvel = robot_state[:, 7:10]
             root_angvel = robot_state[:, 10:13]
 
-            self.robot_articulation.write_root_pose_to_sim(root_pos, root_quat)
-            self.robot_articulation.write_root_velocity_to_sim(root_linvel, root_angvel)
+            root_pose = torch.cat([root_pos, root_quat], dim=-1)  # (N, 7)
+            root_velocity = torch.cat([root_linvel, root_angvel], dim=-1)  # (N, 6)
+
+            self.robot_articulation.write_root_pose_to_sim(root_pose)
+            self.robot_articulation.write_root_velocity_to_sim(root_velocity)
 
             if self.sim_has_dof and "dof_state_tensor" in self.global_tensor_dict:
                 dof_state = self.global_tensor_dict["dof_state_tensor"]
