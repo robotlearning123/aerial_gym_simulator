@@ -29,7 +29,7 @@ def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
 
     # Branch 1: trace > 0
     if mask1.any():
-        s = torch.sqrt(trace[mask1] + 1.0) * 2
+        s = torch.sqrt(torch.clamp(trace[mask1] + 1.0, min=1e-10)) * 2
         quat[mask1, 0] = 0.25 * s
         quat[mask1, 1] = (m[mask1, 2, 1] - m[mask1, 1, 2]) / s
         quat[mask1, 2] = (m[mask1, 0, 2] - m[mask1, 2, 0]) / s
@@ -37,7 +37,7 @@ def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
 
     # Branch 2: m00 is largest diagonal
     if mask2.any():
-        s = torch.sqrt(1.0 + m[mask2, 0, 0] - m[mask2, 1, 1] - m[mask2, 2, 2]) * 2
+        s = torch.sqrt(torch.clamp(1.0 + m[mask2, 0, 0] - m[mask2, 1, 1] - m[mask2, 2, 2], min=1e-10)) * 2
         quat[mask2, 0] = (m[mask2, 2, 1] - m[mask2, 1, 2]) / s
         quat[mask2, 1] = 0.25 * s
         quat[mask2, 2] = (m[mask2, 0, 1] + m[mask2, 1, 0]) / s
@@ -45,7 +45,7 @@ def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
 
     # Branch 3: m11 is largest diagonal
     if mask3.any():
-        s = torch.sqrt(1.0 + m[mask3, 1, 1] - m[mask3, 0, 0] - m[mask3, 2, 2]) * 2
+        s = torch.sqrt(torch.clamp(1.0 + m[mask3, 1, 1] - m[mask3, 0, 0] - m[mask3, 2, 2], min=1e-10)) * 2
         quat[mask3, 0] = (m[mask3, 0, 2] - m[mask3, 2, 0]) / s
         quat[mask3, 1] = (m[mask3, 0, 1] + m[mask3, 1, 0]) / s
         quat[mask3, 2] = 0.25 * s
@@ -53,7 +53,7 @@ def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
 
     # Branch 4: m22 is largest diagonal
     if mask4.any():
-        s = torch.sqrt(1.0 + m[mask4, 2, 2] - m[mask4, 0, 0] - m[mask4, 1, 1]) * 2
+        s = torch.sqrt(torch.clamp(1.0 + m[mask4, 2, 2] - m[mask4, 0, 0] - m[mask4, 1, 1], min=1e-10)) * 2
         quat[mask4, 0] = (m[mask4, 1, 0] - m[mask4, 0, 1]) / s
         quat[mask4, 1] = (m[mask4, 0, 2] + m[mask4, 2, 0]) / s
         quat[mask4, 2] = (m[mask4, 1, 2] + m[mask4, 2, 1]) / s

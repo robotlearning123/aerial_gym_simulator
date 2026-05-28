@@ -41,7 +41,7 @@ class IsaacLabAsset:
         prim_path: str = "{ENV_REGEX_NS}/Robot",
         fix_base: bool = False,
         init_pos: tuple = (0.0, 0.0, 0.0),
-        init_quat: tuple = (1.0, 0.0, 0.0, 0.0),
+        init_quat: tuple = (0.0, 0.0, 0.0, 1.0),  # (x, y, z, w) identity
     ) -> ArticulationCfg:
         """Convert to Isaac Lab ArticulationCfg."""
 
@@ -113,7 +113,7 @@ class IsaacLabAsset:
         self,
         prim_path: str = "{ENV_REGEX_NS}/Object",
         init_pos: tuple = (0.0, 0.0, 0.0),
-        init_quat: tuple = (1.0, 0.0, 0.0, 0.0),
+        init_quat: tuple = (0.0, 0.0, 0.0, 1.0),  # (x, y, z, w) identity
     ) -> RigidObjectCfg:
         """Convert to Isaac Lab RigidObjectCfg."""
 

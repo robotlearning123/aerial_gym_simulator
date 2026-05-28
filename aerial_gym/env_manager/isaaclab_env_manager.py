@@ -9,6 +9,11 @@ from __future__ import annotations
 
 import torch
 
+
+def _quat_xyzw_to_wxyz(q: torch.Tensor) -> torch.Tensor:
+    """Convert quaternion from Isaac Lab (x,y,z,w) to aerial_gym (w,x,y,z)."""
+    return q[..., [3, 0, 1, 2]]
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -114,12 +119,12 @@ class IsaacLabEnvManager:
                 stabilization_threshold=0.001,
             ),
             copy_from_source=False,
+            fix_base=False,
         )
-        spawn_cfg.fix_base = False
 
         init_state = ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 1.0),
-            rot=(1.0, 0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),  # (x, y, z, w) identity quaternion
         )
         init_state.joint_pos = {}
         init_state.joint_vel = {}
@@ -175,7 +180,7 @@ class IsaacLabEnvManager:
 
             # Root state tensors
             root_pos = self.robot_articulation.data.root_pos_w.torch
-            root_quat = self.robot_articulation.data.root_quat_w.torch
+            root_quat = _quat_xyzw_to_wxyz(self.robot_articulation.data.root_quat_w.torch)
             root_linvel = self.robot_articulation.data.root_lin_vel_w.torch
             root_angvel = self.robot_articulation.data.root_ang_vel_w.torch
 
@@ -190,7 +195,7 @@ class IsaacLabEnvManager:
                 obstacle_states = []
                 for obj in self.obstacle_objects:
                     o_pos = obj.data.root_pos_w.torch
-                    o_quat = obj.data.root_quat_w.torch
+                    o_quat = _quat_xyzw_to_wxyz(obj.data.root_quat_w.torch)
                     o_linvel = obj.data.root_lin_vel_w.torch
                     o_angvel = obj.data.root_ang_vel_w.torch
                     obstacle_states.append(torch.cat([o_pos, o_quat, o_linvel, o_angvel], dim=-1))
@@ -213,7 +218,7 @@ class IsaacLabEnvManager:
 
             # Rigid body state tensor from robot articulation
             body_pos_w = self.robot_articulation.data.body_pos_w.torch
-            body_quat_w = self.robot_articulation.data.body_quat_w.torch
+            body_quat_w = _quat_xyzw_to_wxyz(self.robot_articulation.data.body_quat_w.torch)
             body_linvel_w = self.robot_articulation.data.body_lin_vel_w.torch
             body_angvel_w = self.robot_articulation.data.body_ang_vel_w.torch
             rigid_body_state = torch.cat(
@@ -402,7 +407,7 @@ class IsaacLabEnvManager:
         # Update robot state tensor from Isaac Lab data
         if self.robot_articulation is not None:
             root_pos = self.robot_articulation.data.root_pos_w.torch
-            root_quat = self.robot_articulation.data.root_quat_w.torch
+            root_quat = _quat_xyzw_to_wxyz(self.robot_articulation.data.root_quat_w.torch)
             root_linvel = self.robot_articulation.data.root_lin_vel_w.torch
             root_angvel = self.robot_articulation.data.root_ang_vel_w.torch
 
@@ -411,7 +416,7 @@ class IsaacLabEnvManager:
 
             # Update rigid body states
             body_pos_w = self.robot_articulation.data.body_pos_w.torch
-            body_quat_w = self.robot_articulation.data.body_quat_w.torch
+            body_quat_w = _quat_xyzw_to_wxyz(self.robot_articulation.data.body_quat_w.torch)
             body_linvel_w = self.robot_articulation.data.body_lin_vel_w.torch
             body_angvel_w = self.robot_articulation.data.body_ang_vel_w.torch
             rigid_body_state = torch.cat(
@@ -429,7 +434,7 @@ class IsaacLabEnvManager:
             # Update obstacle states
             for i, obj in enumerate(self.obstacle_objects):
                 o_pos = obj.data.root_pos_w.torch
-                o_quat = obj.data.root_quat_w.torch
+                o_quat = _quat_xyzw_to_wxyz(obj.data.root_quat_w.torch)
                 o_linvel = obj.data.root_lin_vel_w.torch
                 o_angvel = obj.data.root_ang_vel_w.torch
                 self.global_tensor_dict["env_asset_state_tensor"][:, i, :] = torch.cat(
