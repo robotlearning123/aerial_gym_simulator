@@ -127,7 +127,7 @@ class IsaacLabEnvManager:
 
         init_state = ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 1.0),
-            rot=(0.0, 0.0, 0.0, 1.0),  # (x, y, z, w) identity quaternion
+            rot=(1.0, 0.0, 0.0, 0.0),  # (w, x, y, z) identity quaternion
         )
         init_state.joint_pos = {}
         init_state.joint_vel = {}
