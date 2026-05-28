@@ -253,7 +253,8 @@ class IsaacLabEnvManager:
             except (ValueError, TypeError):
                 pass  # No actuated joints (e.g. fixed-joint-only URDF)
 
-            # Contact force tensor (zeros initially - populated during simulation)
+            # Contact force tensor (zeros — collision detection requires ContactSensor,
+            # not yet wired to the scene. Collision threshold checks will never trigger.)
             self.global_tensor_dict["global_contact_force_tensor"] = torch.zeros(
                 (self.num_envs, self.num_rigid_bodies_per_env, 3),
                 device=self.device,
@@ -348,13 +349,30 @@ class IsaacLabEnvManager:
         )[env_ids]
 
     def write_to_sim(self):
-        """Write state tensors to simulation.
+        """Write state tensors from global_tensor_dict to simulation."""
+        if self.robot_articulation is not None and "robot_state_tensor" in self.global_tensor_dict:
+            robot_state = self.global_tensor_dict["robot_state_tensor"]
+            root_pos = robot_state[:, :3]
+            root_quat = robot_state[:, 3:7]  # (w,x,y,z)
+            root_linvel = robot_state[:, 7:10]
+            root_angvel = robot_state[:, 10:13]
 
-        In Isaac Lab 3.0, the Articulation and InteractiveScene manage state
-        internally. Root state and DOF state are handled by the scene's
-        internal update cycle.
-        """
-        pass  # Isaac Lab manages state via InteractiveScene + Articulation
+            # Convert (w,x,y,z) back to Isaac Lab (x,y,z,w) for write
+            root_quat_xyzw = root_quat[:, [1, 2, 3, 0]]
+
+            self.robot_articulation.write_root_pose_to_sim(root_pos, root_quat_xyzw)
+            self.robot_articulation.write_root_velocity_to_sim(root_linvel, root_angvel)
+
+            if self.sim_has_dof and "dof_state_tensor" in self.global_tensor_dict:
+                dof_state = self.global_tensor_dict["dof_state_tensor"]
+                joint_pos = dof_state[:, :, 0]
+                joint_vel = dof_state[:, :, 1]
+                self.robot_articulation.write_joint_state_to_sim(joint_pos, joint_vel)
+
+            try:
+                self.robot_articulation.write_data_to_sim()
+            except Exception as e:
+                logger.warning(f"write_to_sim failed: {e}")
 
     def pre_physics_step(self, actions):
         """Apply forces and torques before physics step using Isaac Lab API."""
@@ -395,8 +413,8 @@ class IsaacLabEnvManager:
         if needs_write:
             try:
                 self.robot_articulation.write_data_to_sim()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"pre_physics_step write_data_to_sim failed: {e}")
 
     def physics_step(self):
         """Step the simulation using Isaac Lab."""
@@ -413,6 +431,17 @@ class IsaacLabEnvManager:
 
             robot_state = torch.cat([root_pos, root_quat, root_linvel, root_angvel], dim=-1)
             self.global_tensor_dict["robot_state_tensor"][:] = robot_state
+
+            # Compute body-frame velocities from world-frame
+            from aerial_gym.utils.math import quat_rotate_inverse
+            self.global_tensor_dict["robot_body_angvel"][:] = quat_rotate_inverse(root_quat, root_angvel)
+            self.global_tensor_dict["robot_body_linvel"][:] = quat_rotate_inverse(root_quat, root_linvel)
+
+            # Compute euler angles from quaternion
+            from aerial_gym.utils.pytorch3d_compat import matrix_to_euler_angles, quaternion_to_matrix
+            rot_mat = quaternion_to_matrix(root_quat)
+            euler = matrix_to_euler_angles(rot_mat, convention="XYZ")
+            self.global_tensor_dict["robot_euler_angles"][:] = euler
 
             # Update rigid body states
             body_pos_w = self.robot_articulation.data.body_pos_w.torch

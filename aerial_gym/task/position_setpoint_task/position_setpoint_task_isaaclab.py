@@ -13,6 +13,7 @@ import torch
 import gymnasium as gym
 
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
 from aerial_gym.utils.math import (
@@ -38,6 +39,7 @@ class AerialGymPositionSetpointCfg(DirectRLEnvCfg):
     action_space = 4
     observation_space = 13
     state_space = 0
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=5.0)
 
     # Task parameters
     sim_name: str = "base_sim_config"
@@ -151,7 +153,7 @@ class AerialGymPositionSetpointEnv(DirectRLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | None):
         """Reset environments at given indices."""
         if env_ids is None:
-            env_ids = self._sim_env.num_envs
+            env_ids = torch.arange(self.num_envs, device=self.device)
 
         self._target_position[env_ids, :3] = 0.0
         self._sim_env.reset_idx(env_ids)
