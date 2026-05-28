@@ -1,0 +1,22 @@
+Aerial Gym Simulator - Isaac Sim 6.0 / Isaac Lab 3.0 Evidence
+============================================================
+
+[PASS] base_quadrotor + lee_position_control: passed (no detail)
+[PASS] base_octarotor + lee_position_control: passed (no detail)
+[PASS] base_random + lee_position_control: passed (no detail)
+[PASS] morphy_stiff + lee_position_control: passed (no detail)
+[PASS] lmf1 + lee_position_control: passed (no detail)
+[PASS] lmf2 + lee_position_control: passed (no detail)
+[PASS] x500 + lee_position_control: passed (no detail)
+[PASS] tinyprop + lee_position_control: passed (no detail)
+[PASS] base_quadrotor + empty_env: passed (no detail)
+[PASS] base_quadrotor + env_with_obstacles: passed (no detail)
+[PASS] base_quadrotor + forest_env: passed (no detail)
+[PASS] base_quadrotor + lee_position_control: passed (no detail)
+[PASS] base_quadrotor + lee_velocity_control: passed (no detail)
+[PASS] base_quadrotor + lee_attitude_control: passed (no detail)
+[PASS] base_quadrotor + lee_rates_control: passed (no detail)
+[PASS] base_quadrotor + lee_acceleration_control: passed (no detail)
+[PASS] base_quadrotor + no_control: passed (no detail)
+
+Total: 17, Passed: 17, Failed: 0

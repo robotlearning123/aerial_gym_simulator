@@ -15,7 +15,7 @@ import torch
 from aerial_gym.env_manager.isaaclab_env_manager import IsaacLabEnvManager
 from aerial_gym.env_manager.asset_manager import AssetManager
 from aerial_gym.env_manager.obstacle_manager import ObstacleManager
-from aerial_gym.robots.robot_manager import RobotManagerIGE
+from aerial_gym.robots.isaaclab_robot_manager import IsaacLabRobotManager
 from aerial_gym.registry.env_registry import env_config_registry
 from aerial_gym.registry.sim_registry import sim_config_registry
 from aerial_gym.registry.robot_registry import robot_registry
@@ -97,7 +97,7 @@ class IsaacLabEnvOrchestrator:
         }
 
         # Initialize robot
-        self.robot_manager = RobotManagerIGE(
+        self.robot_manager = IsaacLabRobotManager(
             self.global_sim_dict, self.robot_name, self.controller_name, self.device
         )
         self.global_sim_dict["robot_config"] = self.robot_manager.cfg
@@ -120,7 +120,9 @@ class IsaacLabEnvOrchestrator:
 
     def prepare_sim(self):
         """Prepare the simulation."""
-        self.env_manager.prepare_for_simulation(self, self.global_tensor_dict)
+        self.env_manager.prepare_for_simulation(
+            self, self.global_tensor_dict, self.global_sim_dict.get("robot_config")
+        )
         self.robot_manager.prepare_for_sim(self.global_tensor_dict)
         self.num_robot_actions = self.global_tensor_dict["num_robot_actions"]
 

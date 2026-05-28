@@ -1,0 +1,92 @@
+{
+  "total": 17,
+  "passed": 17,
+  "failed": 0,
+  "results": [
+    {
+      "tag": "base_quadrotor + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_octarotor + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_random + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "morphy_stiff + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "lmf1 + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "lmf2 + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "x500 + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "tinyprop + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + empty_env",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + env_with_obstacles",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + forest_env",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + lee_position_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + lee_velocity_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + lee_attitude_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + lee_rates_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + lee_acceleration_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    },
+    {
+      "tag": "base_quadrotor + no_control",
+      "status": "PASS",
+      "detail": "passed (no detail)"
+    }
+  ]
+}

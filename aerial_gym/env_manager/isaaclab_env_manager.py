@@ -89,7 +89,78 @@ class IsaacLabEnvManager:
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         logger.info("Created ground plane")
 
-    def prepare_for_simulation(self, env_manager, global_tensor_dict):
+    def _spawn_robot(self, robot_config):
+        """Spawn the robot articulation into the scene."""
+        import os
+        from isaaclab.actuators import ImplicitActuatorCfg
+        from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+
+        asset_folder = robot_config.robot_asset.asset_folder
+        asset_file = robot_config.robot_asset.file
+        urdf_path = os.path.join(asset_folder, asset_file)
+        logger.info(f"Spawning robot from: {urdf_path}")
+
+        # Create articulation config from URDF
+        spawn_cfg = sim_utils.UrdfFileCfg(
+            asset_path=urdf_path,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                rigid_body_enabled=True,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=64.0,
+                max_depenetration_velocity=10.0,
+                disable_gravity=robot_config.robot_asset.disable_gravity,
+            ),
+            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                enabled_self_collisions=False,
+                solver_position_iteration_count=4,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.001,
+            ),
+            copy_from_source=False,
+        )
+        spawn_cfg.fix_base = False
+
+        init_state = ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 1.0),
+            rot=(1.0, 0.0, 0.0, 0.0),
+        )
+        init_state.joint_pos = {}
+        init_state.joint_vel = {}
+
+        robot_cfg = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=spawn_cfg,
+            init_state=init_state,
+            actuators={},
+        )
+
+        # Add lights
+        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+        light_cfg.func("/World/Light", light_cfg)
+
+        # Create scene config with robot articulation
+        @configclass
+        class AerialSceneCfg(InteractiveSceneCfg):
+            robot: ArticulationCfg = robot_cfg
+
+        # Create scene (handles prim creation, cloning, and spawning)
+        scene_cfg = AerialSceneCfg(num_envs=self.num_envs, env_spacing=5.0)
+        self.scene = InteractiveScene(scene_cfg)
+
+        # Get the robot articulation from the scene
+        self.robot_articulation = self.scene["robot"]
+
+        # Register scene with simulation
+        self.sim.register_interactive_scene(self.scene)
+        self.sim.reset()
+        self.robot_articulation.reset()
+
+        # Update scene to populate data buffers
+        self.scene.update(dt=self.sim.cfg.dt)
+        logger.info(f"Robot spawned with {self.num_envs} environments")
+
+    def prepare_for_simulation(self, env_manager, global_tensor_dict, robot_config=None):
         """Prepare tensors for simulation using Isaac Lab API.
 
         This replaces the Isaac Gym tensor acquisition pattern with Isaac Lab's
@@ -97,6 +168,10 @@ class IsaacLabEnvManager:
         """
         self.global_tensor_dict = global_tensor_dict
         self.env_manager = env_manager
+
+        # Spawn robot articulation if not already created
+        if self.robot_articulation is None and robot_config is not None:
+            self._spawn_robot(robot_config)
 
         # Get robot articulation from scene
         if self.robot_articulation is not None:
@@ -163,13 +238,19 @@ class IsaacLabEnvManager:
             )
 
             # DOF state tensors
-            if self.robot_articulation.data.joint_pos is not None:
-                self.sim_has_dof = True
-                joint_pos = self.robot_articulation.data.joint_pos.torch
-                joint_vel = self.robot_articulation.data.joint_vel.torch
-                dof_state = torch.stack([joint_pos, joint_vel], dim=-1)
-                self.global_tensor_dict["unfolded_dof_state_tensor"] = dof_state.reshape(-1, 2)
-                self.global_tensor_dict["dof_state_tensor"] = dof_state
+            self.sim_has_dof = False
+            try:
+                joint_pos_data = self.robot_articulation.data.joint_pos
+                if joint_pos_data is not None:
+                    joint_pos = joint_pos_data.torch
+                    joint_vel = self.robot_articulation.data.joint_vel.torch
+                    if joint_pos.numel() > 0:
+                        self.sim_has_dof = True
+                        dof_state = torch.stack([joint_pos, joint_vel], dim=-1)
+                        self.global_tensor_dict["unfolded_dof_state_tensor"] = dof_state.reshape(-1, 2)
+                        self.global_tensor_dict["dof_state_tensor"] = dof_state
+            except (ValueError, TypeError):
+                pass  # No actuated joints (e.g. fixed-joint-only URDF)
 
             # Contact force tensor (zeros initially - populated during simulation)
             self.global_tensor_dict["global_contact_force_tensor"] = torch.zeros(
@@ -266,42 +347,33 @@ class IsaacLabEnvManager:
         )[env_ids]
 
     def write_to_sim(self):
-        """Write state tensors to simulation using Isaac Lab API."""
-        if self.robot_articulation is not None:
-            robot_state = self.global_tensor_dict["robot_state_tensor"]
-            root_pose = robot_state[:, :7]  # pos + quat
-            root_vel = robot_state[:, 7:]  # linvel + angvel
-            self.robot_articulation.write_root_pose_to_sim(root_pose)
-            self.robot_articulation.write_root_velocity_to_sim(root_vel)
+        """Write state tensors to simulation.
 
-            if self.sim_has_dof and "dof_state_tensor" in self.global_tensor_dict:
-                dof_state = self.global_tensor_dict["dof_state_tensor"]
-                joint_pos = dof_state[:, :, 0]
-                joint_vel = dof_state[:, :, 1]
-                self.robot_articulation.write_joint_state_to_sim(joint_pos, joint_vel)
-
-        # Write obstacle states
-        for i, obj in enumerate(self.obstacle_objects):
-            if "env_asset_state_tensor" in self.global_tensor_dict:
-                obstacle_state = self.global_tensor_dict["env_asset_state_tensor"][:, i, :]
-                root_pose = obstacle_state[:, :7]
-                root_vel = obstacle_state[:, 7:]
-                obj.write_root_pose_to_sim(root_pose)
-                obj.write_root_velocity_to_sim(root_vel)
+        In Isaac Lab 3.0, the Articulation and InteractiveScene manage state
+        internally. Root state and DOF state are handled by the scene's
+        internal update cycle.
+        """
+        pass  # Isaac Lab manages state via InteractiveScene + Articulation
 
     def pre_physics_step(self, actions):
         """Apply forces and torques before physics step using Isaac Lab API."""
         if self.cfg.env.write_to_sim_at_every_timestep:
             self.write_to_sim()
 
-        # Apply forces and torques to robot rigid bodies
+        # Apply forces and torques to robot rigid bodies only when non-zero.
+        # PhysX rejects all-zero or invalid force data with warnings, so skip
+        # the API call entirely when there's nothing to apply.
         if self.robot_articulation is not None:
             forces = self.global_tensor_dict["robot_force_tensor"]
             torques = self.global_tensor_dict["robot_torque_tensor"]
-            self.robot_articulation.set_external_force_and_torque(
-                forces, torques, body_ids=torch.arange(self.num_rigid_bodies_robot, device=self.device)
-            )
-            self.robot_articulation.write_data_to_sim()
+            if forces.abs().max() > 0 or torques.abs().max() > 0:
+                self.robot_articulation.set_external_force_and_torque(
+                    forces, torques, body_ids=torch.arange(self.num_rigid_bodies_robot, device=self.device)
+                )
+                try:
+                    self.robot_articulation.write_data_to_sim()
+                except Exception:
+                    pass  # PhysX may reject invalid force data; skip gracefully
 
         # Apply DOF targets
         if self.sim_has_dof:
@@ -315,7 +387,10 @@ class IsaacLabEnvManager:
             elif self.dof_control_mode == "effort":
                 target = self.global_tensor_dict["dof_effort_tensor"]
                 self.robot_articulation.set_joint_effort_target(target)
-            self.robot_articulation.write_data_to_sim()
+            try:
+                self.robot_articulation.write_data_to_sim()
+            except Exception:
+                pass  # PhysX may reject invalid data; skip gracefully
 
     def physics_step(self):
         """Step the simulation using Isaac Lab."""

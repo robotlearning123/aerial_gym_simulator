@@ -11,3 +11,6 @@ nn/
 train_dir/
 wandb/
 runs/
+evidence/videos/frames/
+evidence/videos/*.mp4
+evidence/videos/*.png
